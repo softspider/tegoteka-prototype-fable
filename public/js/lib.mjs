@@ -40,5 +40,5 @@ export function formatSize(bytes) {
 
 export function formatMs(ms) {
   if (ms === undefined || ms === null) return '—';
-  return `${ms < 10 ? ms.toFixed(1) : Math.round(ms)} мс`;
+  return `${ms < 10 ? ms.toFixed(1).replace('.', ',') : Math.round(ms)} мс`;
 }

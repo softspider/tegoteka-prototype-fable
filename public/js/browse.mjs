@@ -284,8 +284,8 @@ function EmptyState({ view }) {
 function Timings() {
   const t = state.timings;
   return html`<p class="timings" data-testid="timings">
-    Вычисления для узла: отбор ${formatMs(t.select)} · сортировка ${formatMs(t.sort)} · переходы ${formatMs(t.neighbors)}
-    · автодополнение ${formatMs(t.autocomplete)} · элементов в выборке ${formatNumber(t.selectionSize ?? 0)}
+    Вычисления для узла: отбор ${formatMs(t.select)} · сортировка ${formatMs(t.sort)} · переходы ${formatMs(t.neighbors)} ·
+    автодополнение ${formatMs(t.autocomplete)} · элементов в выборке ${formatNumber(t.selectionSize ?? 0)}
   </p>`;
 }
 

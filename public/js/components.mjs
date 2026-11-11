@@ -86,6 +86,7 @@ export function Modal({ title, children, footer, size = 'medium', onClose = clos
     const previous = document.activeElement;
     const target = dialog.querySelector('[data-autofocus]') ?? dialog.querySelector('input, textarea, select, button');
     target?.focus();
+    document.documentElement.classList.add('modal-open');
 
     // Клавиши обрабатываются на уровне окна: фокус может оказаться вне диалога,
     // например когда элемент с фокусом удалён из списка.
@@ -115,6 +116,8 @@ export function Modal({ title, children, footer, size = 'medium', onClose = clos
     window.addEventListener('keydown', onKeyDown);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
+      // Диалог ещё в документе в момент очистки, поэтому считаем остальные.
+      if (document.querySelectorAll('.modal').length <= 1) document.documentElement.classList.remove('modal-open');
       if (previous?.isConnected) previous.focus();
     };
   }, []);
