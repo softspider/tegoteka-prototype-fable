@@ -132,10 +132,10 @@ export function DeleteTagDialog({ tagId }) {
     }
   };
   return html`<${ConfirmDialog} title=${`Удалить тег «${tag.name}»?`} confirmLabel="Удалить тег" danger onConfirm=${remove}>
-    <p data-testid="delete-tag-count">${used === 0
-      ? 'Тег не назначен ни одному элементу.'
-      : html`Тег назначен <strong>${countItems(used)}</strong> рабочей области.`}</p>
-    <p>Тег будет удалён из набора тегов и из разметки этих элементов. Сами элементы и остальные их теги сохранятся.</p>
+    <p data-testid="delete-tag-count">Элементов рабочей области с этим тегом: <strong>${formatNumber(used)}</strong>.</p>
+    <p>${used === 0
+      ? 'Тег будет удалён из набора тегов рабочей области.'
+      : 'Тег будет удалён из набора тегов и из разметки этих элементов. Сами элементы и остальные их теги сохранятся.'}</p>
     ${node().includes(tagId) ? html`<p>Тег сейчас выбран: текущим станет узел с оставшимися выбранными тегами.</p>` : null}
   <//>`;
 }

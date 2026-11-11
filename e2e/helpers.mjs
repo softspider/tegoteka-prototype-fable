@@ -73,7 +73,8 @@ export async function openWorkspace(context, base, id) {
   page.problems = [];
   page.on('pageerror', (error) => page.problems.push(`pageerror: ${error.message}`));
   page.on('console', (message) => {
-    if (message.type() === 'error') page.problems.push(`console: ${message.text()}`);
+    // Ответ 422 — ожидаемый отказ в операции (например, занятое название тега).
+    if (message.type() === 'error' && !message.text().includes('status of 422')) page.problems.push(`console: ${message.text()}`);
   });
   await page.goto(`${base}#ws=${id}`);
   await page.waitForSelector(`[data-testid=app][data-workspace="${id}"]`);

@@ -75,39 +75,52 @@ export function Segmented({ label, value, options, onChange, testId }) {
  */
 export function Modal({ title, children, footer, size = 'medium', onClose = closeDialog, canClose, testId }) {
   const ref = useRef(null);
+  const handlers = useRef({});
+  const tryClose = () => {
+    if (!canClose || canClose()) onClose();
+  };
+  handlers.current.tryClose = tryClose;
+
   useEffect(() => {
     const dialog = ref.current;
     const previous = document.activeElement;
     const target = dialog.querySelector('[data-autofocus]') ?? dialog.querySelector('input, textarea, select, button');
     target?.focus();
-    return () => previous?.focus?.();
-  }, []);
 
-  const tryClose = () => {
-    if (!canClose || canClose()) onClose();
-  };
-  const onKeyDown = (event) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      tryClose();
-    }
-    if (event.key === 'Tab') {
-      const focusable = [...ref.current.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea, select, [tabindex="0"]')];
+    // Клавиши обрабатываются на уровне окна: фокус может оказаться вне диалога,
+    // например когда элемент с фокусом удалён из списка.
+    const onKeyDown = (event) => {
+      const modals = document.querySelectorAll('.modal');
+      if (modals[modals.length - 1] !== dialog) return;
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        handlers.current.tryClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea, select')]
+        .filter((element) => element.offsetParent !== null);
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      const inside = dialog.contains(document.activeElement);
+      if (!inside || (event.shiftKey && document.activeElement === first)) {
         event.preventDefault();
-        last.focus();
+        (event.shiftKey ? last : first).focus();
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
         first.focus();
       }
-    }
-  };
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      if (previous?.isConnected) previous.focus();
+    };
+  }, []);
+
   return html`<div class="backdrop" onMouseDown=${(event) => event.target === event.currentTarget && tryClose()}>
-    <div class=${cx('modal', `modal-${size}`)} role="dialog" aria-modal="true" aria-label=${title} ref=${ref}
-      onKeyDown=${onKeyDown} data-testid=${testId}>
+    <div class=${cx('modal', `modal-${size}`)} role="dialog" aria-modal="true" aria-label=${title} ref=${ref} data-testid=${testId}>
       <header class="modal-head">
         <h2>${title}</h2>
         <button type="button" class="icon-button" onClick=${tryClose} aria-label="Закрыть" title="Закрыть"><${Icon} name="x" /></button>

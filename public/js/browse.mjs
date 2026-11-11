@@ -75,6 +75,8 @@ function Transition({ transition, sign, max }) {
       <span class="transition-tags">
         <span class="visually-hidden">${sign === '+' ? 'добавить' : 'убрать'} </span>
         ${transition.changed.map((id) => html`<${Tag} key=${id} tag=${index.tagById.get(id)} variant=${sign === '+' ? 'added' : 'removed'} />`)}
+        ${sign === '−' && transition.changed.length > 1
+          ? html`<span class="transition-rest" data-testid="transition-rest">остаётся: ${target}</span>` : null}
       </span>
       <span class="transition-counts">
         <span class="transition-total" title="Элементов в выборке узла" data-testid="transition-selection">${formatNumber(transition.selection)}</span>
@@ -84,6 +86,17 @@ function Transition({ transition, sign, max }) {
       <span class="transition-bar" aria-hidden="true"><span style=${`width:${Math.round(share * 100)}%`}></span></span>
     </button>
   </li>`;
+}
+
+const narrowQuery = window.matchMedia('(max-width: 920px)');
+function useNarrow() {
+  const [narrow, setNarrow] = useState(narrowQuery.matches);
+  useEffect(() => {
+    const onChange = () => setNarrow(narrowQuery.matches);
+    narrowQuery.addEventListener('change', onChange);
+    return () => narrowQuery.removeEventListener('change', onChange);
+  }, []);
+  return narrow;
 }
 
 function TransitionGroup({ title, hint, icon, sign, transitions, paged, emptyText, testId }) {
@@ -99,10 +112,12 @@ function TransitionGroup({ title, hint, icon, sign, transitions, paged, emptyTex
 
   const total = transitions.length;
   const max = transitions.reduce((value, t) => Math.max(value, t.selection), 0);
+  // На узком экране компактный набор вдвое короче, чтобы список элементов оставался близко.
+  const compact = useNarrow() ? COMPACT_TRANSITIONS / 2 : COMPACT_TRANSITIONS;
   let shown = transitions;
   let filtered = transitions;
   if (!expanded) {
-    shown = transitions.slice(0, COMPACT_TRANSITIONS);
+    shown = transitions.slice(0, compact);
   } else if (paged) {
     const query = filter.trim().toLowerCase();
     if (query) filtered = transitions.filter((t) => t.label.includes(query));
@@ -128,9 +143,9 @@ function TransitionGroup({ title, hint, icon, sign, transitions, paged, emptyTex
       <span>${page * PAGE + 1}–${Math.min(filtered.length, page * PAGE + PAGE)} из ${filtered.length}</span>
       <button type="button" class="icon-button" disabled=${page >= pages - 1} onClick=${() => setPage(page + 1)} aria-label="Следующая страница"><${Icon} name="forward" /></button>
     </div>` : null}
-    ${total > COMPACT_TRANSITIONS ? html`<button type="button" class="link-button" onClick=${() => { setExpanded(!expanded); setPage(0); setFilter(''); }}
+    ${total > compact ? html`<button type="button" class="link-button" onClick=${() => { setExpanded(!expanded); setPage(0); setFilter(''); }}
       data-testid="transition-toggle">
-      ${expanded ? `Показать только первые ${COMPACT_TRANSITIONS}` : `Показать все переходы: ${total}`}
+      ${expanded ? `Показать только первые ${compact}` : `Показать все переходы: ${total}`}
     </button>` : null}
   </section>`;
 }

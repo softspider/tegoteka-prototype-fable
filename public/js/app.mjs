@@ -40,10 +40,12 @@ function Header() {
       Неразмеченные
       <span class=${cx('counter', unmarked > 0 && 'counter-accent')} data-testid="unmarked-count">${formatNumber(unmarked)}</span>
     </button>
-    <button type="button" class="button button-quiet" onClick=${() => openDialog({ type: 'glossary' })} data-testid="open-glossary">
-      <${Icon} name="book" />Глоссарий<span class="counter">${formatNumber(state.ws.tags.length)}</span></button>
-    <button type="button" class="button button-quiet" onClick=${() => openDialog({ type: 'settings' })} data-testid="open-settings">
-      <${Icon} name="settings" />Настройки</button>
+    <button type="button" class="button button-quiet" onClick=${() => openDialog({ type: 'glossary' })} data-testid="open-glossary"
+      title="Глоссарий тегов" aria-label="Глоссарий тегов">
+      <${Icon} name="book" /><span class="label-wide">Глоссарий</span><span class="counter">${formatNumber(state.ws.tags.length)}</span></button>
+    <button type="button" class="button button-quiet" onClick=${() => openDialog({ type: 'settings' })} data-testid="open-settings"
+      title="Настройки" aria-label="Настройки">
+      <${Icon} name="settings" /><span class="label-wide">Настройки</span></button>
   </header>`;
 }
 
