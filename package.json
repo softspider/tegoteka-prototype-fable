@@ -1,0 +1,21 @@
+{
+  "name": "tegoteka-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Прототип Теготеки: локальное браузерное приложение для проверки концепции и интерфейса",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/server.mjs",
+    "test": "node --test tests/model.test.mjs tests/ops.test.mjs tests/history.test.mjs tests/storage.test.mjs",
+    "test:browser": "node --test --test-concurrency=1 e2e/01-selections.e2e.mjs e2e/02-navigation.e2e.mjs e2e/03-editing.e2e.mjs e2e/04-media-persistence.e2e.mjs e2e/05-volume.e2e.mjs",
+    "measure": "node scripts/measure.mjs",
+    "demo-media": "node scripts/make-demo-media.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
