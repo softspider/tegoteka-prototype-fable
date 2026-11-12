@@ -8,10 +8,11 @@ export class ApiError extends Error {
   }
 }
 
-async function request(method, url, body, headers = {}) {
+async function request(method, url, body, headers = {}, options = {}) {
   let response;
   try {
     response = await fetch(url, {
+      ...options,
       method,
       headers: body === undefined || body instanceof Blob ? headers : { 'Content-Type': 'application/json', ...headers },
       body: body === undefined || body instanceof Blob ? body : JSON.stringify(body),
@@ -39,7 +40,8 @@ export const openWorkspace = (id) => request('GET', base(id));
 export const renameWorkspace = (id, name) => request('PATCH', base(id), { name });
 export const deleteWorkspace = (id) => request('DELETE', base(id));
 export const applyOp = (id, op) => request('POST', `${base(id)}/ops`, op);
-export const saveState = (id, state) => request('PUT', `${base(id)}/state`, state);
+// keepalive: запрос завершается, даже если страницу закрывают.
+export const saveState = (id, state) => request('PUT', `${base(id)}/state`, state, {}, { keepalive: true });
 export const uploadFile = (id, file) =>
   request('POST', `${base(id)}/files`, file, {
     'Content-Type': file.type || 'application/octet-stream',

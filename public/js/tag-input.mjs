@@ -13,7 +13,7 @@ const SEPARATOR = /[\s,;]/u;
  *   mode 'markup' — подсказки по всем тегам области; новые названия создают теги.
  * onAdd(names) возвращает текст ошибки или null.
  */
-export function TagInput({ mode, selectedIds, onAdd, onBackspace, placeholder, inputId, autoFocus, testId }) {
+export function TagInput({ mode, selectedIds, onAdd, onBackspace, placeholder, inputId, autoFocus, testId, api }) {
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -21,6 +21,18 @@ export function TagInput({ mode, selectedIds, onAdd, onBackspace, placeholder, i
   const inputRef = useRef(null);
   const listRef = useRef(null);
   const index = state.index;
+
+  // Доступ к ещё не подтверждённому вводу: сохранение формы учитывает набранные теги.
+  if (api) {
+    api.current = {
+      pending: () => parseTagInput(text),
+      clear: () => {
+        setText('');
+        setOpen(false);
+        setError(null);
+      },
+    };
+  }
 
   const query = normalizeTagName(text);
   let suggestions = { items: [], total: 0 };
@@ -168,8 +180,10 @@ export function TagInput({ mode, selectedIds, onAdd, onBackspace, placeholder, i
  *   original     — исходный набор названий; null — разметка не задана;
  *                  undefined — нового элемента ещё нет в рабочей области
  *   descriptions — описания новых тегов: { название: текст }
+ *   inputApi     — доступ к неподтверждённому вводу (см. TagInput)
+ *   offer        — сохранение приостановлено, чтобы предложить описания новых тегов
  */
-export function MarkupEditor({ names, onNames, original, descriptions, onDescriptions, autoFocus, inputId }) {
+export function MarkupEditor({ names, onNames, original, descriptions, onDescriptions, autoFocus, inputId, inputApi, offer }) {
   const index = state.index;
   const selectedIds = names.map((name) => index.tagByName.get(name)?.id).filter(Boolean);
   const originalSet = new Set(original ?? []);
@@ -212,14 +226,14 @@ export function MarkupEditor({ names, onNames, original, descriptions, onDescrip
           sign=${variantOf(name) === 'added' ? '+' : null}
           title=${variantOf(name) === 'fresh' ? 'Новый тег: будет добавлен в рабочую область при сохранении' : undefined}
           onRemove=${() => remove(name)} />`)}
-        <${TagInput} mode="markup" selectedIds=${selectedIds} onAdd=${add} inputId=${inputId} autoFocus=${autoFocus}
+        <${TagInput} mode="markup" selectedIds=${selectedIds} onAdd=${add} inputId=${inputId} autoFocus=${autoFocus} api=${inputApi}
           onBackspace=${() => names.length && remove(names[names.length - 1])}
-          placeholder=${names.length ? 'ещё тег…' : 'Введите теги через пробел'} testId="markup-input" />
+          placeholder=${names.length ? 'ещё тег…' : 'Теги через пробел'} testId="markup-input" />
       </div>
-      ${names.length === 0 ? html`<p class="field-hint">Пустой набор тегов — тоже разметка: элемент станет собственным элементом корня.</p>` : null}
     </div>
-    ${fresh.length > 0 ? html`<div class="fresh-tags" data-testid="new-tags">
-      <p class="field-hint">Новые теги будут добавлены в рабочую область. Опишите их смысл — или оставьте описание пустым.</p>
+    ${fresh.length > 0 ? html`<div class=${cx('fresh-tags', offer && 'is-offer')} data-testid="new-tags">
+      <span class="markup-caption">Новые теги</span>
+      ${offer ? html`<p class="fresh-offer" role="status" data-testid="description-offer">Добавьте описание или сохраните без него.</p>` : null}
       ${fresh.map((name) => html`<label class="fresh-row" key=${name}>
         <${Tag} tag=${{ name }} variant="fresh" />
         <input type="text" class="input" placeholder="Описание (необязательно)" value=${descriptions[name] ?? ''}
@@ -228,4 +242,24 @@ export function MarkupEditor({ names, onNames, original, descriptions, onDescrip
       </label>`)}
     </div>` : null}
   </div>`;
+}
+
+/**
+ * Подтверждает набранный, но ещё не подтверждённый ввод тегов перед сохранением.
+ * Возвращает { names, error, offered }; offered — новые теги, описание которых
+ * пользователю ещё не предлагалось.
+ */
+export function commitPendingTags(names, inputApi) {
+  const pending = inputApi.current?.pending() ?? [];
+  for (const name of pending) {
+    const problem = tagNameError(name);
+    if (problem) return { names, error: problem, offered: [] };
+  }
+  const added = pending.filter((name) => !names.includes(name));
+  inputApi.current?.clear();
+  return {
+    names: [...names, ...added],
+    error: null,
+    offered: added.filter((name) => !state.index.tagByName.has(name)),
+  };
 }

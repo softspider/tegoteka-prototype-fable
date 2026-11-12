@@ -1,11 +1,11 @@
 // Режим разметки: отдельная работа со списком неразмеченных элементов.
-import { html, cx, useState, useEffect, formatTime, formatNumber, plural } from './lib.mjs';
+import { html, cx, useState, useEffect, useRef, formatTime, formatNumber } from './lib.mjs';
 import { state, node, runOp, setScreen, setDraft, openDialog, announceSaved, tagNames, navigate, setNotice } from './store.mjs';
-import { Icon, NodeTags } from './components.mjs';
-import { MarkupEditor } from './tag-input.mjs';
+import { Icon, NodeTags, AddButton } from './components.mjs';
+import { MarkupEditor, commitPendingTags } from './tag-input.mjs';
+import { focusDescription } from './editor.mjs';
 import { ContentView } from './content-view.mjs';
 import { sortItems } from '/shared/model.mjs';
-import { parseTagInput } from '/shared/tags.mjs';
 import { contentLabel } from '/shared/content.mjs';
 
 const TAG_INPUT_ID = 'markup-tag-input';
@@ -19,8 +19,7 @@ export function Progress() {
     <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax=${total} aria-valuenow=${done}
       aria-label="Прогресс разметки"><span style=${`width:${(share * 100).toFixed(1)}%`}></span></div>
     <p class="progress-text">
-      Размечено <strong>${formatNumber(done)}</strong> из ${formatNumber(total)} ${plural(total, 'элемента', 'элементов', 'элементов')} рабочей области
-      · ${left === 0 ? 'неразмеченных нет' : `осталось ${formatNumber(left)}`}
+      Размечено <strong>${formatNumber(done)}</strong> из ${formatNumber(total)} · ${left === 0 ? 'неразмеченных нет' : `осталось ${formatNumber(left)}`}
     </p>
   </div>`;
 }
@@ -34,6 +33,8 @@ export function MarkupMode() {
   const [session, setSession] = useState(0);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [offer, setOffer] = useState(false);
+  const inputApi = useRef(null);
 
   const item = queue.find((candidate) => candidate.id === selectedId) ?? queue[0] ?? null;
   useEffect(() => {
@@ -47,6 +48,7 @@ export function MarkupMode() {
   const select = (id) => {
     setSelectedId(id);
     setError(null);
+    setOffer(false);
   };
   const skip = () => {
     const position = queue.findIndex((candidate) => candidate.id === item.id);
@@ -54,8 +56,20 @@ export function MarkupMode() {
   };
 
   const save = async () => {
-    const pending = parseTagInput(document.getElementById(TAG_INPUT_ID)?.value ?? '');
-    const finalNames = [...names, ...pending.filter((name) => !names.includes(name))];
+    // Набранные, но не подтверждённые теги входят в набор; новым сначала предлагается описание.
+    const committed = commitPendingTags(names, inputApi);
+    if (committed.error) {
+      setError(committed.error);
+      return;
+    }
+    const finalNames = committed.names;
+    if (finalNames.length !== names.length) setNames(finalNames);
+    if (committed.offered.length > 0) {
+      setError(null);
+      setOffer(true);
+      focusDescription(committed.offered[0]);
+      return;
+    }
     const position = queue.findIndex((candidate) => candidate.id === item.id);
     const next = queue[position + 1] ?? queue[position - 1] ?? null;
     setSaving(true);
@@ -63,6 +77,7 @@ export function MarkupMode() {
     try {
       const result = await runOp({ type: 'updateItem', id: item.id, tags: finalNames, tagDescriptions: descriptions });
       setSession(session + 1);
+      setOffer(false);
       setSelectedId(next?.id ?? null);
       announceSaved(result.itemId, 'размечен');
     } catch (failure) {
@@ -74,12 +89,10 @@ export function MarkupMode() {
   const notice = state.notice;
   return html`<div class="markup-mode" data-testid="markup-mode">
     <header class="markup-head">
-      <div>
-        <h2>Режим разметки</h2>
-        <p class="markup-sub">Неразмеченные элементы не попадают в выборки. Разметка каждого элемента сохраняется отдельно — можно прерваться и вернуться позже.</p>
-      </div>
       <button type="button" class="button" onClick=${() => setScreen('browse')} data-testid="markup-exit">
-        <${Icon} name="back" />Вернуться к просмотру</button>
+        <${Icon} name="back" />К просмотру</button>
+      <h2>Разметка</h2>
+      <${AddButton} />
     </header>
     <${Progress} />
     ${session > 0 ? html`<p class="markup-session" data-testid="markup-session">За этот заход размечено: ${session}.</p>` : null}
@@ -93,8 +106,7 @@ export function MarkupMode() {
 
     ${!item ? html`<div class="empty" data-testid="markup-done">
       <h3>Неразмеченных элементов нет</h3>
-      <p>${state.index.itemCount === 0 ? 'В рабочей области пока нет элементов.' : 'Все элементы рабочей области размечены и участвуют в выборках.'}</p>
-      <button type="button" class="button button-primary" onClick=${() => setScreen('browse')}>Вернуться к просмотру</button>
+      <button type="button" class="button button-primary" onClick=${() => setScreen('browse')}>К просмотру</button>
     </div>` : html`<div class="markup-columns">
       <nav class="markup-queue" aria-label="Неразмеченные элементы">
         <h3>Неразмеченные <span class="group-count">${queue.length}</span></h3>
@@ -119,10 +131,10 @@ export function MarkupMode() {
         <div class="field">
           <label class="field-label" for=${TAG_INPUT_ID}>Теги элемента</label>
           <${MarkupEditor} key=${item.id} names=${names} onNames=${setNames} original=${null} descriptions=${descriptions}
-            onDescriptions=${setDescriptions} inputId=${TAG_INPUT_ID} autoFocus />
+            onDescriptions=${setDescriptions} inputId=${TAG_INPUT_ID} inputApi=${inputApi} offer=${offer} />
           ${current.length > 0 && names.join(' ') !== tagNames(current).join(' ')
             ? html`<button type="button" class="link-button" onClick=${() => setNames(tagNames(current))} data-testid="use-node-tags">
-                Подставить теги текущего узла: ${tagNames(current).join(' ')}</button>` : null}
+                Теги текущего узла: ${tagNames(current).join(' ')}</button>` : null}
         </div>
         ${error ? html`<p class="field-error" role="alert">${error}</p>` : null}
         <div class="markup-actions">
@@ -131,7 +143,7 @@ export function MarkupMode() {
           ${queue.length > 1 ? html`<button type="button" class="button" onClick=${skip} data-testid="markup-skip">Пропустить</button>` : null}
           <span class="actions-spacer"></span>
           <button type="button" class="button button-quiet" onClick=${() => openDialog({ type: 'item', itemId: item.id })} data-testid="markup-edit">
-            <${Icon} name="edit" size=${14} />Изменить элемент</button>
+            <${Icon} name="edit" size=${14} />Изменить</button>
           <button type="button" class="button button-quiet button-danger-quiet" onClick=${() => openDialog({ type: 'delete-item', itemId: item.id })}
             data-testid="markup-delete"><${Icon} name="trash" size=${14} />Удалить</button>
         </div>

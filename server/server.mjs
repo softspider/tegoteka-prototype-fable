@@ -148,8 +148,7 @@ async function handleApi(req, res, store, url) {
     return sendJson(res, 200, await store.apply(id, await readJsonBody(req)));
   }
   if (parts.length === 3 && parts[2] === 'state' && method === 'PUT') {
-    await store.saveState(id, await readJsonBody(req));
-    return sendJson(res, 200, { ok: true });
+    return sendJson(res, 200, { ok: true, ...(await store.saveState(id, await readJsonBody(req))) });
   }
   if (parts.length === 3 && parts[2] === 'files' && method === 'POST') {
     const name = decodeURIComponent(String(req.headers['x-file-name'] ?? '')) || 'файл';

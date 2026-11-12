@@ -1,6 +1,6 @@
 // Базовые элементы интерфейса: значки, теги, переключатели, диалоги, сообщения.
-import { html, cx, useEffect, useRef } from './lib.mjs';
-import { state, closeDialog, dismissToast } from './store.mjs';
+import { html, cx, useState, useEffect, useLayoutEffect, useRef } from './lib.mjs';
+import { state, closeDialog, openDialog, dismissToast } from './store.mjs';
 
 const ICONS = {
   back: 'M15 18l-6-6 6-6',
@@ -26,6 +26,10 @@ const ICONS = {
   search: 'M11 5a6 6 0 1 0 0 12a6 6 0 0 0 0-12zM20 20l-4.6-4.6',
   layers: 'M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5',
   note: 'M5 4h14v16H5zM9 9h6M9 13h6',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+  hidden: 'M3 3l18 18M10.6 6.2A9.6 9.6 0 0 1 12 6c5 0 9 6 9 6a15 15 0 0 1-2.6 3.1M6.5 7.6A15 15 0 0 0 3 12s4 6 9 6a9 9 0 0 0 3.6-.8M9.9 10a3 3 0 0 0 4.1 4.1',
+  first: 'M7 6v12M18 6l-7 6 7 6',
+  last: 'M17 6v12M6 6l7 6-7 6',
 };
 
 export function Icon({ name, size = 16 }) {
@@ -61,13 +65,43 @@ export function NodeTags({ tagIds, variant = 'plain' }) {
 export function Segmented({ label, value, options, onChange, testId }) {
   return html`<div class="segmented" role="group" aria-label=${label} data-testid=${testId}>
     ${options.map((option) => html`<button type="button" key=${option.value}
-      class=${cx('segment', value === option.value && 'is-active')}
+      class=${cx('segment', value === option.value && 'is-active')} title=${option.title}
       aria-pressed=${value === option.value} data-value=${option.value}
       onClick=${() => onChange(option.value)}>
-      ${option.label}${option.count !== undefined ? html`<span class="segment-count">${option.count}</span>` : null}
+      ${option.label}${option.count !== undefined ? html`<span class=${cx('segment-count', option.countClass)}>${option.count}</span>` : null}
     </button>`)}
   </div>`;
 }
+
+// Клавиши диалогов обрабатывает один обработчик окна, подключённый при загрузке
+// модуля. Диалог попадает в список открытых в той же синхронной фазе, в которой
+// появляется в документе, поэтому видимое окно всегда готово к Escape и Tab.
+const openModals = [];
+
+window.addEventListener('keydown', (event) => {
+  const top = openModals[openModals.length - 1];
+  if (!top) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    top.tryClose();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const dialog = top.element;
+  const focusable = [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea, select')]
+    .filter((element) => element.offsetParent !== null);
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const inside = dialog.contains(document.activeElement);
+  if (!inside || (event.shiftKey && document.activeElement === first)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
 
 /**
  * Диалоговое окно. canClose() возвращает false, если закрывать по Esc или
@@ -75,55 +109,33 @@ export function Segmented({ label, value, options, onChange, testId }) {
  */
 export function Modal({ title, children, footer, size = 'medium', onClose = closeDialog, canClose, testId }) {
   const ref = useRef(null);
-  const handlers = useRef({});
+  const entry = useRef({ element: null, tryClose: null });
   const tryClose = () => {
     if (!canClose || canClose()) onClose();
   };
-  handlers.current.tryClose = tryClose;
+  entry.current.tryClose = tryClose;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialog = ref.current;
     const previous = document.activeElement;
-    const target = dialog.querySelector('[data-autofocus]') ?? dialog.querySelector('input, textarea, select, button');
-    target?.focus();
+    entry.current.element = dialog;
+    openModals.push(entry.current);
     document.documentElement.classList.add('modal-open');
-
-    // Клавиши обрабатываются на уровне окна: фокус может оказаться вне диалога,
-    // например когда элемент с фокусом удалён из списка.
-    const onKeyDown = (event) => {
-      const modals = document.querySelectorAll('.modal');
-      if (modals[modals.length - 1] !== dialog) return;
-      if (event.key === 'Escape') {
-        event.stopPropagation();
-        handlers.current.tryClose();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const focusable = [...dialog.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea, select')]
-        .filter((element) => element.offsetParent !== null);
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const inside = dialog.contains(document.activeElement);
-      if (!inside || (event.shiftKey && document.activeElement === first)) {
-        event.preventDefault();
-        (event.shiftKey ? last : first).focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
+    // Поле с data-autofocus получает фокус сразу; data-autofocus-desktop — только при
+    // работе с мышью, чтобы на смартфоне не открывалась экранная клавиатура.
+    const fine = window.matchMedia('(pointer: fine)').matches;
+    const target = dialog.querySelector('[data-autofocus]') ?? (fine ? dialog.querySelector('[data-autofocus-desktop]') : null) ?? dialog;
+    target.focus();
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      // Диалог ещё в документе в момент очистки, поэтому считаем остальные.
-      if (document.querySelectorAll('.modal').length <= 1) document.documentElement.classList.remove('modal-open');
+      const position = openModals.indexOf(entry.current);
+      if (position >= 0) openModals.splice(position, 1);
+      if (openModals.length === 0) document.documentElement.classList.remove('modal-open');
       if (previous?.isConnected) previous.focus();
     };
   }, []);
 
   return html`<div class="backdrop" onMouseDown=${(event) => event.target === event.currentTarget && tryClose()}>
-    <div class=${cx('modal', `modal-${size}`)} role="dialog" aria-modal="true" aria-label=${title} ref=${ref} data-testid=${testId}>
+    <div class=${cx('modal', `modal-${size}`)} role="dialog" aria-modal="true" aria-label=${title} ref=${ref} data-testid=${testId} tabindex="-1">
       <header class="modal-head">
         <h2>${title}</h2>
         <button type="button" class="icon-button" onClick=${tryClose} aria-label="Закрыть" title="Закрыть"><${Icon} name="x" /></button>
@@ -162,4 +174,52 @@ export function Switch({ checked, onChange, label, hint, testId }) {
     <input type="checkbox" class="switch" checked=${checked} onChange=${(event) => onChange(event.target.checked)} data-testid=${testId} />
     <span><span class="switch-label">${label}</span>${hint ? html`<span class="switch-hint">${hint}</span>` : null}</span>
   </label>`;
+}
+
+/**
+ * Меню дополнительных действий. items: [{ label, icon, onClick, danger, testId }].
+ */
+export function Menu({ label, items, testId }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (event) => {
+      if (!ref.current?.contains(event.target)) setOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [open]);
+
+  if (items.length === 0) return null;
+  return html`<div class="menu" ref=${ref}>
+    <button type="button" class=${cx('icon-button', open && 'is-active')} aria-haspopup="menu" aria-expanded=${open}
+      aria-label=${label} title=${label} onClick=${() => setOpen(!open)} data-testid=${testId}><${Icon} name="more" size=${18} /></button>
+    ${open ? html`<div class="menu-list" role="menu">
+      ${items.map((item) => html`<button type="button" role="menuitem" key=${item.label}
+        class=${cx('menu-item', item.danger && 'is-danger')} data-testid=${item.testId}
+        onClick=${() => { setOpen(false); item.onClick(); }}>
+        ${item.icon ? html`<${Icon} name=${item.icon} size=${15} />` : null}${item.label}</button>`)}
+    </div>` : null}
+  </div>`;
+}
+
+/**
+ * Создание элемента: одна кнопка, видимая всегда. На узком экране она плавает
+ * в правом нижнем углу, на широком стоит в закреплённой панели.
+ */
+export function AddButton() {
+  return html`<button type="button" class="button button-primary add-button" onClick=${() => openDialog({ type: 'item' })}
+    data-testid="add-item" aria-label="Добавить элемент" title="Добавить элемент (N)">
+    <${Icon} name="plus" size=${20} /><span class="add-label">Добавить</span></button>`;
 }

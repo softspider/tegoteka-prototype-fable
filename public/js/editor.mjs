@@ -1,16 +1,22 @@
 // Создание, редактирование, перемещение и удаление элемента.
-import { html, useState, useEffect, useMemo, formatSize } from './lib.mjs';
+import { html, useState, useEffect, useMemo, useRef, formatSize } from './lib.mjs';
 import { state, node, runOp, closeDialog, openDialog, announceSaved, setSetting, tagNames, toast } from './store.mjs';
 import { Icon, Modal, ConfirmDialog, Segmented, NodeTags, Tag } from './components.mjs';
-import { MarkupEditor } from './tag-input.mjs';
+import { MarkupEditor, commitPendingTags } from './tag-input.mjs';
 import { ContentView } from './content-view.mjs';
 import * as api from './api.mjs';
-import { parseTagInput } from '/shared/tags.mjs';
 
 const TAG_INPUT_ID = 'editor-tag-input';
 
 function sameNames(a, b) {
   return a.length === b.length && a.every((name) => b.includes(name));
+}
+
+/** Переводит фокус на поле описания первого из предложенных новых тегов. */
+export function focusDescription(name) {
+  requestAnimationFrame(() => {
+    document.querySelector(`[data-testid="new-tag-description-${CSS.escape(name)}"]`)?.focus();
+  });
 }
 
 /**
@@ -36,6 +42,8 @@ export function ItemDialog({ itemId, moveTo }) {
   const [reminder, setReminder] = useState(null);
   const [dontRemind, setDontRemind] = useState(false);
   const [guard, setGuard] = useState(false);
+  const [offer, setOffer] = useState(false);
+  const inputApi = useRef(null);
 
   const localUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   useEffect(() => () => localUrl && URL.revokeObjectURL(localUrl), [localUrl]);
@@ -50,12 +58,6 @@ export function ItemDialog({ itemId, moveTo }) {
     ? Boolean(title.trim() || text.trim() || file || !sameNames(names, tagNames(current)))
     : contentChanged || title.trim() !== (item.title ?? '') || !sameNames(names, originalNames ?? []) || (originalNames === null && names.length > 0);
 
-  /** Теги, набранные в поле ввода, но ещё не подтверждённые. */
-  const pendingNames = () => {
-    const pending = parseTagInput(document.getElementById(TAG_INPUT_ID)?.value ?? '');
-    return [...names, ...pending.filter((name) => !names.includes(name))];
-  };
-
   const buildContent = async () => {
     if (kind === 'empty') return { kind: 'empty' };
     if (kind === 'text') return { kind: 'text', text };
@@ -67,15 +69,17 @@ export function ItemDialog({ itemId, moveTo }) {
     throw new Error('Выберите файл или другой вид содержания.');
   };
 
-  const save = async ({ withMarkup, confirmed = false }) => {
-    const finalNames = withMarkup ? pendingNames() : null;
-    if (withMarkup) setNames(finalNames);
+  /**
+   * names — набор тегов для сохранения; null — сохранить без разметки.
+   * confirmed — напоминание о соответствии тегов уже показано.
+   */
+  const send = async (finalNames, confirmed) => {
     if (kind === 'file' && !file && !keptFile) {
       setError('Выберите файл или другой вид содержания.');
       return;
     }
     if (contentChanged && state.settings.remindOnContentChange && !confirmed) {
-      setReminder({ withMarkup, names: finalNames });
+      setReminder({ names: finalNames });
       return;
     }
     setSaving(true);
@@ -84,7 +88,7 @@ export function ItemDialog({ itemId, moveTo }) {
       const content = await buildContent();
       const op = creating
         ? { type: 'createItem', title, content, tags: finalNames, tagDescriptions: descriptions }
-        : { type: 'updateItem', id: item.id, title, content, tagDescriptions: descriptions, ...(withMarkup ? { tags: finalNames } : {}) };
+        : { type: 'updateItem', id: item.id, title, content, tagDescriptions: descriptions, ...(finalNames ? { tags: finalNames } : {}) };
       const result = await runOp(op);
       closeDialog();
       announceSaved(result.itemId, creating ? 'добавлен' : 'сохранён');
@@ -95,11 +99,33 @@ export function ItemDialog({ itemId, moveTo }) {
     }
   };
 
+  const save = ({ withMarkup }) => {
+    if (!withMarkup) {
+      send(null, false);
+      return;
+    }
+    // Теги, набранные в поле и не подтверждённые, входят в набор. Если среди
+    // них есть новые, сохранение откладывается: сначала предлагается описание.
+    const committed = commitPendingTags(names, inputApi);
+    if (committed.error) {
+      setError(committed.error);
+      return;
+    }
+    setError(null);
+    if (committed.names.length !== names.length) setNames(committed.names);
+    if (committed.offered.length > 0) {
+      setOffer(true);
+      focusDescription(committed.offered[0]);
+      return;
+    }
+    send(committed.names, false);
+  };
+
   const confirmReminder = () => {
     if (dontRemind) setSetting('remindOnContentChange', false);
-    const { withMarkup } = reminder;
+    const { names: finalNames } = reminder;
     setReminder(null);
-    save({ withMarkup, confirmed: true });
+    send(finalNames, true);
   };
 
   const onFile = (event) => {
@@ -122,7 +148,7 @@ export function ItemDialog({ itemId, moveTo }) {
 
   if (reminder) {
     return html`<${Modal} key="reminder" title="Проверьте теги" size="small" testId="content-reminder" onClose=${() => setReminder(null)} footer=${html`
-      <button type="button" class="button" onClick=${() => setReminder(null)} data-testid="reminder-back">Вернуться к редактированию</button>
+      <button type="button" class="button" onClick=${() => setReminder(null)} data-testid="reminder-back">Назад</button>
       <button type="button" class="button button-primary" onClick=${confirmReminder} data-autofocus data-testid="reminder-save">Сохранить</button>`}>
       <p>Содержание изменено. Теги должны соответствовать новому содержанию.</p>
       <div class="reminder-tags">
@@ -134,7 +160,7 @@ export function ItemDialog({ itemId, moveTo }) {
       </div>
       <label class="check-row">
         <input type="checkbox" checked=${dontRemind} onChange=${(event) => setDontRemind(event.target.checked)} data-testid="reminder-disable" />
-        Больше не напоминать (можно вернуть в настройках)
+        Больше не напоминать
       </label>
     <//>`;
   }
@@ -144,28 +170,21 @@ export function ItemDialog({ itemId, moveTo }) {
     : keptFile;
 
   return html`<${Modal} key="editor" title=${heading} size="large" testId="item-dialog" canClose=${canClose} footer=${html`
-    ${!creating ? html`<button type="button" class="button button-danger-quiet foot-left" disabled=${saving}
+    ${!creating ? html`<button type="button" class="button button-danger-quiet foot-left" disabled=${saving} aria-label="Удалить элемент" title="Удалить элемент"
       onClick=${() => { closeDialog(); openDialog({ type: 'delete-item', itemId: item.id }); }}
-      data-testid="editor-delete"><${Icon} name="trash" />Удалить</button>` : null}
+      data-testid="editor-delete"><${Icon} name="trash" /><span class="label-wide">Удалить</span></button>` : null}
     <button type="button" class="button" onClick=${closeDialog} disabled=${saving} data-testid="editor-cancel">Отмена</button>
     ${creating || unmarkedItem ? html`<button type="button" class="button" disabled=${saving}
       onClick=${() => save({ withMarkup: false })} data-testid="editor-save-unmarked"
-      title="Элемент попадёт в список неразмеченных">${creating ? 'Сохранить без разметки' : 'Сохранить, не размечая'}</button>` : null}
+      title="Сохранить без разметки: элемент попадёт в список неразмеченных">Без разметки</button>` : null}
     <button type="button" class="button button-primary" disabled=${saving} onClick=${() => save({ withMarkup: true })} data-testid="editor-save">
-      ${saving ? 'Сохранение…' : moveTo ? 'Переместить' : creating || unmarkedItem ? 'Сохранить с разметкой' : 'Сохранить'}</button>`}>
+      ${saving ? 'Сохранение…' : moveTo ? 'Переместить' : 'Сохранить'}</button>`}>
 
-    ${moveTo ? html`<p class="dialog-lead" data-testid="move-lead">Разметка элемента будет заменена набором тегов узла:
-      <${NodeTags} tagIds=${moveTo} />. Сверьте теги с содержанием; если они ему не соответствуют, отмените перемещение.</p>` : null}
+    ${moveTo ? html`<p class="dialog-lead" data-testid="move-lead">Новая разметка — теги узла <${NodeTags} tagIds=${moveTo} />. Сверьте их с содержанием.</p>` : null}
     ${guard ? html`<p class="field-error" role="alert">Есть несохранённые изменения. Сохраните их или нажмите «Отмена».</p>` : null}
 
     <div class="editor-grid">
       <div class="editor-column">
-        <label class="field">
-          <span class="field-label">Название <span class="field-optional">необязательно</span></span>
-          <input type="text" class="input" value=${title} maxlength="200" onInput=${(event) => setTitle(event.target.value)}
-            data-autofocus=${creating || undefined} data-testid="editor-title" placeholder="Помогает узнать элемент в списке" />
-        </label>
-
         <div class="field">
           <span class="field-label">Содержание</span>
           <${Segmented} label="Вид содержания" value=${kind} onChange=${setKind} testId="content-kind" options=${[
@@ -173,30 +192,32 @@ export function ItemDialog({ itemId, moveTo }) {
             { value: 'file', label: 'Файл' },
             { value: 'empty', label: 'Пусто' },
           ]} />
-          ${kind === 'text' ? html`<textarea class="input textarea" rows="6" value=${text} onInput=${(event) => setText(event.target.value)}
-            placeholder="Заметка, цитата, тост, стихи…" data-testid="editor-text"></textarea>` : null}
+          ${kind === 'text' ? html`<textarea class="input textarea" rows="5" value=${text} onInput=${(event) => setText(event.target.value)}
+            aria-label="Текст" data-autofocus=${creating || undefined} data-testid="editor-text"></textarea>` : null}
           ${kind === 'file' ? html`<div class="file-picker">
             ${previewContent ? html`<${ContentView} content=${previewContent} localUrl=${file ? localUrl : undefined} />` : null}
             <label class="button file-button">
               <${Icon} name="file" />${previewContent ? 'Заменить файл' : 'Выбрать файл'}
               <input type="file" class="visually-hidden" onChange=${onFile} data-testid="editor-file" />
             </label>
-            <p class="field-hint">Изображение, аудио, видео или любой другой файл. ${file ? `Выбран: ${file.name}, ${formatSize(file.size)}.` : ''}</p>
+            ${file ? html`<p class="field-hint">${file.name}, ${formatSize(file.size)}</p>` : null}
           </div>` : null}
-          ${kind === 'empty' ? html`<p class="field-hint">У элемента не будет содержания: о чём он, скажут название и теги.</p>` : null}
-          ${contentChanged ? html`<p class="field-note" data-testid="content-changed-note">Содержание изменено: при сохранении запись будет заменена новым элементом.</p>` : null}
+          ${contentChanged ? html`<p class="field-note" data-testid="content-changed-note">Содержание изменено: запись будет заменена новой.</p>` : null}
         </div>
+        <label class="field">
+          <span class="field-label">Название <span class="field-optional">необязательно</span></span>
+          <input type="text" class="input" value=${title} maxlength="200" onInput=${(event) => setTitle(event.target.value)}
+            data-testid="editor-title" />
+        </label>
       </div>
 
       <div class="editor-column">
         <div class="field">
           <label class="field-label" for=${TAG_INPUT_ID}>Теги</label>
           <${MarkupEditor} names=${names} onNames=${setNames} original=${originalNames} descriptions=${descriptions}
-            onDescriptions=${setDescriptions} inputId=${TAG_INPUT_ID} autoFocus=${Boolean(moveTo)} />
-          ${creating && sameNames(names, tagNames(current)) && current.length > 0
-            ? html`<p class="field-hint">Предложены теги текущего узла. Их можно оставить, дополнить или изменить.</p>` : null}
+            onDescriptions=${setDescriptions} inputId=${TAG_INPUT_ID} autoFocus=${Boolean(moveTo)} inputApi=${inputApi} offer=${offer} />
           ${canUseNode ? html`<button type="button" class="link-button" onClick=${() => setNames(tagNames(current))} data-testid="use-node-tags">
-            Заменить набором текущего узла: ${current.length ? tagNames(current).join(' ') : 'корень (пустой набор)'}</button>` : null}
+            Теги текущего узла: ${current.length ? tagNames(current).join(' ') : 'корень'}</button>` : null}
         </div>
       </div>
     </div>
@@ -210,13 +231,13 @@ export function DeleteItemDialog({ itemId }) {
   const remove = async () => {
     try {
       await runOp({ type: 'deleteItem', id: itemId });
-      toast('Элемент удалён из рабочей области.');
+      toast('Элемент удалён.');
     } catch (failure) {
       toast(failure.message, 'error');
     }
   };
-  return html`<${ConfirmDialog} title="Удалить элемент?" confirmLabel="Удалить элемент" danger onConfirm=${remove}>
-    <p>Элемент «${item.title ?? 'Без названия'}» будет удалён из рабочей области. Восстановить его нельзя.</p>
-    <div class="confirm-preview"><${ContentView} content=${item.content} compact /></div>
+  return html`<${ConfirmDialog} title="Удалить элемент?" confirmLabel="Удалить" danger onConfirm=${remove}>
+    <p>«${item.title ?? 'Без названия'}» будет удалён из рабочей области. Восстановить его нельзя.</p>
+    <div class="confirm-preview"><${ContentView} content=${item.content} /></div>
   <//>`;
 }

@@ -3,7 +3,7 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   setup, createWorkspace, openWorkspace, addTags, nodeTags, items, labels, transitions, setMode, count, unmarkedCount,
-  typeMarkupTags, editedTags, shot, t,
+  typeMarkupTags, editedTags, menuAction, shot, t,
 } from './helpers.mjs';
 
 let env;
@@ -84,7 +84,7 @@ test('новый тег: предложение описания, пропуск
   await page.keyboard.press('Escape');
 
   // Удаление последнего элемента с тегом: тег остаётся доступным.
-  await page.click(t('item-delete'));
+  await menuAction(page, page, 'item-delete');
   await page.click(t('confirm-ok'));
   await page.waitForSelector(t('empty-selection'));
   assert.deepEqual(await nodeTags(page), ['плитка', 'обои']);
@@ -129,8 +129,8 @@ test('изменение названия и тегов сохраняет эл�
   // Перемещение: замена разметки набором тегов текущего узла.
   await addTags(page, 'ремонт');
   const e4 = await byText(page, 'Срочно согласовать бюджет ремонта кухни');
-  await card(page, 'Срочно согласовать').locator(t('item-move')).click();
-  assert.match(await page.textContent(t('move-lead')), /будет заменена набором тегов узла/);
+  await menuAction(page, card(page, 'Срочно согласовать'), 'item-move');
+  assert.match(await page.textContent(t('move-lead')), /Новая разметка — теги узла/);
   assert.deepEqual(await originalTags(page), ['ремонт', '−кухня', '−бюджет', '−срочно']);
   assert.deepEqual(await editedTags(page), ['ремонт']);
   assert.equal(await page.inputValue(t('editor-text')), 'Срочно согласовать бюджет ремонта кухни');
@@ -143,7 +143,7 @@ test('изменение названия и тегов сохраняет эл�
   assert.equal(moved.own, true);
 
   // Если набор не соответствует содержанию, перемещение отменяется.
-  await card(page, 'Бюджет электрики').locator(t('item-move')).click();
+  await menuAction(page, card(page, 'Бюджет электрики'), 'item-move');
   await page.click(t('editor-cancel'));
   await closed(page);
   assert.deepEqual((await byText(page, 'Бюджет электрики при ремонте кухни')).tags, ['ремонт', 'кухня', 'электрика', 'бюджет']);
@@ -325,7 +325,7 @@ test('удаление элемента обновляет выборки и п�
   await addTags(page, 'ремонт', 'кухня');
   await setMode(page, 'selection');
   assert.deepEqual(await transitions(page, 'descendants'), ['+ электрика', '+ бюджет срочно']);
-  await card(page, 'План электрики').locator(t('item-delete')).click();
+  await menuAction(page, card(page, 'План электрики'), 'item-delete');
   assert.match(await page.textContent(t('confirm-dialog')), /Восстановить его нельзя/);
   await page.click(t('confirm-ok'));
   await page.waitForFunction(() => document.querySelectorAll('[data-testid=item]').length === 2);

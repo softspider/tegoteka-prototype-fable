@@ -3,7 +3,7 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   setup, createWorkspace, openWorkspace, op, addTags, nodeTags, items, labels, transitions, setMode, setSort, activeValue,
-  count, editedTags, shot, t,
+  count, editedTags, menuAction, shot, t,
 } from './helpers.mjs';
 
 let env;
@@ -22,7 +22,7 @@ test('соседние заполненные предки и потомки н�
   const counts = (group, id) => page.$$eval(`[data-testid=${group}] [data-testid=${id}]`, (cells) => cells.map((cell) => cell.textContent));
   assert.deepEqual(await counts('descendants', 'transition-selection'), ['2', '1']);
   assert.deepEqual(await counts('ancestors', 'transition-selection'), ['4', '4']);
-  assert.deepEqual(await counts('descendants', 'transition-own'), ['собств. 1', 'собств. 1']);
+  assert.deepEqual(await counts('descendants', 'transition-own'), ['1', '1']);
   await shot(page, '02-neighbours');
 
   await page.click('[data-testid=transition][data-label="+ электрика"]');
@@ -69,7 +69,7 @@ test('новый заполненный узел становится проме
   await shot(page, '02-intermediate-node');
 
   await page.click('[data-testid=transition][data-label="+ кухня"]');
-  await page.click(t('item-delete'));
+  await menuAction(page, page, 'item-delete');
   await page.click(t('confirm-ok'));
   await page.waitForSelector(t('empty-own'));
   assert.deepEqual(await nodeTags(page), ['ремонт', 'кухня'], 'после удаления последнего собственного элемента узел остаётся текущим');
@@ -193,7 +193,7 @@ test('компактный набор переходов; остальные д�
   const page = await openWorkspace(env.context, env.base, id);
 
   assert.equal((await transitions(page, 'descendants')).length, 6, 'по умолчанию — компактный набор');
-  assert.equal(await page.textContent('[data-testid=descendants] [data-testid=transition-toggle]'), 'Показать все переходы: 14');
+  assert.equal((await page.textContent('[data-testid=descendants] [data-testid=transition-toggle]')).trim(), 'Все 14');
   await page.click('[data-testid=descendants] [data-testid=transition-toggle]');
   assert.equal((await transitions(page, 'descendants')).length, 12, 'первая страница');
   assert.match(await page.textContent(t('transition-pager')), /1–12 из 14/);

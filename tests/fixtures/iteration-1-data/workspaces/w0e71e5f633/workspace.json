@@ -1,0 +1,347 @@
+{
+  "format": 1,
+  "id": "w0e71e5f633",
+  "name": "Данные первой итерации",
+  "createdAt": 1794522735335,
+  "version": 3,
+  "seq": 36,
+  "clock": 1794522735358,
+  "tags": [
+    {
+      "id": "t3",
+      "name": "ремонт",
+      "description": ""
+    },
+    {
+      "id": "t5",
+      "name": "кухня",
+      "description": ""
+    },
+    {
+      "id": "t7",
+      "name": "электрика",
+      "description": ""
+    },
+    {
+      "id": "t9",
+      "name": "бюджет",
+      "description": "Планируемые расходы"
+    },
+    {
+      "id": "t10",
+      "name": "срочно",
+      "description": ""
+    },
+    {
+      "id": "t13",
+      "name": "сад",
+      "description": ""
+    },
+    {
+      "id": "t15",
+      "name": "день_рождения",
+      "description": ""
+    },
+    {
+      "id": "t16",
+      "name": "май",
+      "description": ""
+    },
+    {
+      "id": "t17",
+      "name": "5",
+      "description": ""
+    },
+    {
+      "id": "t18",
+      "name": "игорь",
+      "description": ""
+    },
+    {
+      "id": "t19",
+      "name": "артемьев",
+      "description": ""
+    },
+    {
+      "id": "t21",
+      "name": "июнь",
+      "description": ""
+    },
+    {
+      "id": "t22",
+      "name": "10",
+      "description": ""
+    },
+    {
+      "id": "t23",
+      "name": "анна",
+      "description": ""
+    },
+    {
+      "id": "t25",
+      "name": "мечта",
+      "description": ""
+    },
+    {
+      "id": "t27",
+      "name": "эскиз",
+      "description": "Рисунок от руки"
+    },
+    {
+      "id": "t29",
+      "name": "музыка",
+      "description": ""
+    },
+    {
+      "id": "t31",
+      "name": "видео",
+      "description": ""
+    },
+    {
+      "id": "t33",
+      "name": "документ",
+      "description": ""
+    },
+    {
+      "id": "t35",
+      "name": "итерация_1",
+      "description": "Данные до обновления"
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "title": "Общее",
+      "content": {
+        "kind": "text",
+        "text": "Общая запись"
+      },
+      "tags": [],
+      "createdAt": 1793658735335,
+      "modifiedAt": 1793658735335
+    },
+    {
+      "id": "i2",
+      "title": "Ремонт",
+      "content": {
+        "kind": "text",
+        "text": "Подготовить ремонт"
+      },
+      "tags": [
+        "t3"
+      ],
+      "createdAt": 1793745135335,
+      "modifiedAt": 1793745135335
+    },
+    {
+      "id": "i4",
+      "title": "Кухня",
+      "content": {
+        "kind": "text",
+        "text": "Заметка о кухне"
+      },
+      "tags": [
+        "t5"
+      ],
+      "createdAt": 1793831535335,
+      "modifiedAt": 1793831535335
+    },
+    {
+      "id": "i6",
+      "title": "План",
+      "content": {
+        "kind": "text",
+        "text": "План электрики при ремонте кухни"
+      },
+      "tags": [
+        "t3",
+        "t5",
+        "t7"
+      ],
+      "createdAt": 1793917935335,
+      "modifiedAt": 1793917935335
+    },
+    {
+      "id": "i8",
+      "title": "Смета",
+      "content": {
+        "kind": "text",
+        "text": "Срочно согласовать бюджет ремонта кухни"
+      },
+      "tags": [
+        "t3",
+        "t5",
+        "t9",
+        "t10"
+      ],
+      "createdAt": 1794004335335,
+      "modifiedAt": 1794004335335
+    },
+    {
+      "id": "i11",
+      "title": "План",
+      "content": {
+        "kind": "text",
+        "text": "Бюджет электрики при ремонте кухни"
+      },
+      "tags": [
+        "t3",
+        "t5",
+        "t7",
+        "t9"
+      ],
+      "createdAt": 1794090735335,
+      "modifiedAt": 1794090735335
+    },
+    {
+      "id": "i12",
+      "title": null,
+      "content": {
+        "kind": "text",
+        "text": "Полить сад"
+      },
+      "tags": [
+        "t13"
+      ],
+      "createdAt": 1794177135335,
+      "modifiedAt": 1794177135335
+    },
+    {
+      "id": "i14",
+      "title": "Игорь",
+      "content": {
+        "kind": "empty"
+      },
+      "tags": [
+        "t15",
+        "t16",
+        "t17",
+        "t18",
+        "t19"
+      ],
+      "createdAt": 1794263535335,
+      "modifiedAt": 1794263535335
+    },
+    {
+      "id": "i20",
+      "title": "Анна",
+      "content": {
+        "kind": "empty"
+      },
+      "tags": [
+        "t15",
+        "t21",
+        "t22",
+        "t23"
+      ],
+      "createdAt": 1794349935335,
+      "modifiedAt": 1794349935335
+    },
+    {
+      "id": "i24",
+      "title": "Набросок",
+      "content": {
+        "kind": "text",
+        "text": "Запись для последующей разметки"
+      },
+      "tags": null,
+      "createdAt": 1794436335335,
+      "modifiedAt": 1794436335335
+    },
+    {
+      "id": "i26",
+      "title": "Эскиз кухни",
+      "content": {
+        "kind": "file",
+        "fileId": "fc3104d5745a2e2f2",
+        "name": "Эскиз кухни.png",
+        "mime": "image/png",
+        "size": 22391
+      },
+      "tags": [
+        "t3",
+        "t5",
+        "t27"
+      ],
+      "createdAt": 1794519195335,
+      "modifiedAt": 1794519195335
+    },
+    {
+      "id": "i28",
+      "title": "Мелодия для поздравления",
+      "content": {
+        "kind": "file",
+        "fileId": "f0650ae9a5803f338",
+        "name": "Мелодия.mp3",
+        "mime": "audio/mpeg",
+        "size": 33480
+      },
+      "tags": [
+        "t15",
+        "t29"
+      ],
+      "createdAt": 1794519255335,
+      "modifiedAt": 1794519255335
+    },
+    {
+      "id": "i30",
+      "title": "Сад за день",
+      "content": {
+        "kind": "file",
+        "fileId": "fa0f41ab66bb000cd",
+        "name": "Сад.webm",
+        "mime": "video/webm",
+        "size": 14607
+      },
+      "tags": [
+        "t13",
+        "t31"
+      ],
+      "createdAt": 1794519315335,
+      "modifiedAt": 1794519315335
+    },
+    {
+      "id": "i32",
+      "title": "Смета ремонта",
+      "content": {
+        "kind": "file",
+        "fileId": "f5847ea89a884348a",
+        "name": "Смета ремонта.pdf",
+        "mime": "application/pdf",
+        "size": 17626
+      },
+      "tags": [
+        "t3",
+        "t9",
+        "t33"
+      ],
+      "createdAt": 1794519375335,
+      "modifiedAt": 1794519375335
+    },
+    {
+      "id": "i34",
+      "title": "Заметка первой итерации",
+      "content": {
+        "kind": "text",
+        "text": "Создано кодом 5669829"
+      },
+      "tags": [
+        "t3",
+        "t35"
+      ],
+      "createdAt": 1794522735355,
+      "modifiedAt": 1794522735355
+    },
+    {
+      "id": "i36",
+      "title": null,
+      "content": {
+        "kind": "text",
+        "text": "Ещё одна неразмеченная запись"
+      },
+      "tags": null,
+      "createdAt": 1794522735358,
+      "modifiedAt": 1794522735358
+    }
+  ]
+}

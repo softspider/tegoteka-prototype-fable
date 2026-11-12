@@ -6,6 +6,7 @@ import {
 } from './store.mjs';
 import { Icon, Modal, ConfirmDialog, Tag, Switch } from './components.mjs';
 import { sortTags } from '/shared/model.mjs';
+import { LIMIT_RANGE, PAGE_SIZE_RANGE } from '/shared/display.mjs';
 import { normalizeTagName } from '/shared/tags.mjs';
 
 // ---------- Глоссарий ----------
@@ -58,7 +59,7 @@ function GlossaryRow({ tag }) {
     ${error ? html`<p class="field-error" role="alert" data-testid="glossary-error">${error}</p>` : null}
     <div class="glossary-actions">
       <button type="button" class="button button-small button-quiet" onClick=${go} data-testid="glossary-go"
-        title="Сделать текущим узел с одним этим тегом"><${Icon} name="target" size=${14} />Перейти в узел</button>
+        title="Сделать текущим узел с одним этим тегом"><${Icon} name="target" size=${14} />В узел</button>
       <button type="button" class="button button-small button-quiet" onClick=${() => start('description')} data-testid="glossary-describe">
         <${Icon} name="note" size=${14} />Описание</button>
       <button type="button" class="button button-small button-quiet" onClick=${() => start('name')} data-testid="glossary-rename">
@@ -91,22 +92,20 @@ export function GlossaryDialog() {
   };
 
   return html`<${Modal} title="Глоссарий тегов" size="large" testId="glossary-dialog">
-    <p class="dialog-lead">Теги рабочей области и их описания. Глоссарий пополняется при разметке элементов;
-      тег остаётся в нём, даже если не назначен ни одному элементу.</p>
     <div class="glossary-tools">
       <label class="filter-field">
         <${Icon} name="search" size=${14} />
         <input type="search" class="input-plain" placeholder="Найти тег или описание" value=${filter}
-          onInput=${(event) => setFilter(event.target.value)} data-autofocus data-testid="glossary-filter" />
+          onInput=${(event) => setFilter(event.target.value)} data-autofocus-desktop data-testid="glossary-filter" />
       </label>
       <span class="glossary-total" data-testid="glossary-total">${formatNumber(state.ws.tags.length)} ${plural(state.ws.tags.length, 'тег', 'тега', 'тегов')}</span>
     </div>
-    ${state.ws.tags.length === 0 ? html`<p class="group-empty">В рабочей области пока нет тегов. Они появятся при разметке первой записи.</p>` : null}
+    ${state.ws.tags.length === 0 ? html`<p class="group-empty">Тегов пока нет.</p>` : null}
     ${state.ws.tags.length > 0 && tags.length === 0 ? html`<p class="group-empty">Ничего не найдено.</p>` : null}
     <ul class="glossary-list">${tags.slice(0, 200).map((tag) => html`<${GlossaryRow} key=${tag.id} tag=${tag} />`)}</ul>
     ${tags.length > 200 ? html`<p class="group-empty">Показаны первые 200 тегов — уточните поиск.</p>` : null}
     <form class="glossary-add" onSubmit=${add}>
-      <h3>Добавить тег без разметки</h3>
+      <h3>Новый тег</h3>
       <div class="inline-form">
         <input type="text" class="input" placeholder="Название" value=${name} onInput=${(event) => { setName(event.target.value); setError(null); }}
           aria-label="Название нового тега" data-testid="add-tag-name" />
@@ -136,25 +135,42 @@ export function DeleteTagDialog({ tagId }) {
     <p>${used === 0
       ? 'Тег будет удалён из набора тегов рабочей области.'
       : 'Тег будет удалён из набора тегов и из разметки этих элементов. Сами элементы и остальные их теги сохранятся.'}</p>
-    ${node().includes(tagId) ? html`<p>Тег сейчас выбран: текущим станет узел с оставшимися выбранными тегами.</p>` : null}
   <//>`;
 }
 
 // ---------- Настройки ----------
 
+/** Числовая настройка: применяется сразу, если значение в допустимых границах. */
+function NumberSetting({ label, name, range, testId }) {
+  const [text, setText] = useState(String(state.settings[name]));
+  const [min, max] = range;
+  const apply = (value) => {
+    setText(value);
+    const number = Number(value);
+    if (value.trim() !== '' && Number.isInteger(number) && number >= min && number <= max) setSetting(name, number);
+  };
+  const invalid = String(state.settings[name]) !== text.trim();
+  return html`<label class="number-row">
+    <span class="switch-label">${label}</span>
+    <input type="number" class=${cx('input number-input', invalid && 'is-invalid')} inputmode="numeric" min=${min} max=${max} step="1"
+      value=${text} onInput=${(event) => apply(event.target.value)} onBlur=${() => setText(String(state.settings[name]))}
+      aria-invalid=${invalid} title=${`От ${min} до ${max}`} data-testid=${testId} />
+  </label>`;
+}
+
 export function SettingsDialog() {
   const settings = state.settings;
   return html`<${Modal} title="Настройки" size="small" testId="settings-dialog">
-    <${Switch} checked=${settings.remindOnContentChange} onChange=${(value) => setSetting('remindOnContentChange', value)}
-      label="Напоминать о тегах при изменении содержания" testId="setting-reminder"
-      hint="Перед сохранением изменённого содержания показывать напоминание: теги должны соответствовать новому содержанию." />
+    <h3 class="settings-title">Показ элементов</h3>
+    <${NumberSetting} label="Показывать, если элементов не больше" name="limit" range=${LIMIT_RANGE} testId="setting-limit" />
+    <${NumberSetting} label="Элементов на странице" name="pageSize" range=${PAGE_SIZE_RANGE} testId="setting-page-size" />
+    <h3 class="settings-title">Прочее</h3>
     <${Switch} checked=${settings.showOwnCounts} onChange=${(value) => setSetting('showOwnCounts', value)}
-      label="Показывать число собственных элементов в переходах" testId="setting-own-counts"
-      hint="Размер выборки соседнего узла показывается всегда." />
+      label="Число собственных элементов в переходах" testId="setting-own-counts" />
+    <${Switch} checked=${settings.remindOnContentChange} onChange=${(value) => setSetting('remindOnContentChange', value)}
+      label="Напоминать о тегах при изменении содержания" testId="setting-reminder" />
     <${Switch} checked=${settings.showTimings} onChange=${(value) => setSetting('showTimings', value)}
-      label="Показывать время вычислений" testId="setting-timings"
-      hint="Диагностика прототипа: время отбора, получения переходов и автодополнения для текущего узла." />
-    <p class="field-hint">Настройки хранятся вместе с рабочей областью «${state.ws.name}».</p>
+      label="Время вычислений" testId="setting-timings" />
   <//>`;
 }
 
@@ -247,8 +263,6 @@ function WorkspaceRow({ workspace }) {
 
 export function WorkspacesDialog() {
   return html`<${Modal} title="Рабочие области" size="large" testId="workspaces-dialog">
-    <p class="dialog-lead">Каждая рабочая область хранит свои элементы, теги и состояние просмотра.
-      Для проверочного сценария удобно создать отдельную копию демонстрационного набора.</p>
     <ul class="workspace-list">${state.workspaces.map((workspace) => html`<${WorkspaceRow} key=${workspace.id} workspace=${workspace} />`)}</ul>
     <h3 class="section-title">Новая рабочая область</h3>
     <${CreateWorkspaceForm} />
@@ -272,8 +286,7 @@ export function DeleteWorkspaceDialog({ workspace }) {
 export function Welcome() {
   return html`<main class="welcome" data-testid="welcome">
     <h1>Теготека</h1>
-    <p class="welcome-lead">Записи — тексты, изображения, аудио, видео и другие файлы — находятся по тегам.
-      Создайте первую рабочую область: начните с пустой или загрузите демонстрационный набор.</p>
+    <p class="welcome-lead">Создайте рабочую область.</p>
     <${CreateWorkspaceForm} submitLabel="Создать рабочую область" />
   </main>`;
 }

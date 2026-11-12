@@ -27,10 +27,32 @@ export class StoreError extends Error {
   }
 }
 
-async function writeJsonAtomic(file, value, pretty) {
-  const temporary = `${file}.${process.pid}.tmp`;
-  await fsp.writeFile(temporary, pretty ? JSON.stringify(value, null, 2) : JSON.stringify(value));
-  await fsp.rename(temporary, file);
+// Записи одного файла выполняются по очереди, каждая — через собственный
+// временный файл: параллельные сохранения не мешают друг другу, а файл на
+// диске всегда целый.
+const writeQueues = new Map();
+let temporaryCounter = 0;
+
+function writeJsonAtomic(file, value, pretty) {
+  const text = pretty ? JSON.stringify(value, null, 2) : JSON.stringify(value);
+  const write = async () => {
+    temporaryCounter += 1;
+    const temporary = `${file}.${process.pid}.${temporaryCounter}.tmp`;
+    try {
+      await fsp.writeFile(temporary, text);
+      await fsp.rename(temporary, file);
+    } catch (error) {
+      await fsp.rm(temporary, { force: true });
+      throw error;
+    }
+  };
+  const result = (writeQueues.get(file) ?? Promise.resolve()).then(write);
+  const tail = result.catch(() => {});
+  writeQueues.set(file, tail);
+  tail.then(() => {
+    if (writeQueues.get(file) === tail) writeQueues.delete(file);
+  });
+  return result;
 }
 
 async function readJson(file, fallback) {
@@ -50,6 +72,7 @@ export class Store {
     this.root = path.join(dataDir, 'workspaces');
     this.cache = new Map();
     this.queues = new Map();
+    this.stateRevisions = new Map();
   }
 
   async init() {
@@ -66,11 +89,15 @@ export class Store {
     return path.join(this.dir(id), 'files', fileId);
   }
 
-  /** Выполняет действия с одной рабочей областью строго по очереди. */
-  enqueue(id, action) {
-    const previous = this.queues.get(id) ?? Promise.resolve();
+  /** Выполняет действия с одним ключом (рабочей областью, её состоянием) строго по очереди. */
+  enqueue(key, action) {
+    const previous = this.queues.get(key) ?? Promise.resolve();
     const next = previous.then(action, action);
-    this.queues.set(id, next.catch(() => {}));
+    const tail = next.catch(() => {});
+    this.queues.set(key, tail);
+    tail.then(() => {
+      if (this.queues.get(key) === tail) this.queues.delete(key);
+    });
     return next;
   }
 
@@ -81,6 +108,10 @@ export class Store {
     const ws = await readJson(path.join(dir, 'workspace.json'), null);
     if (!ws) throw new StoreError(404, 'workspace_missing', 'Рабочая область не найдена.');
     await this.removeOrphanFiles(id, ws);
+    // Временные файлы, оставшиеся от прерванной записи.
+    for (const name of await fsp.readdir(dir)) {
+      if (name.endsWith('.tmp')) await fsp.rm(path.join(dir, name), { force: true });
+    }
     this.cache.set(id, ws);
     return ws;
   }
@@ -125,7 +156,9 @@ export class Store {
     return { workspaces: summaries, lastId: summaries.some((s) => s.id === app.lastWorkspaceId) ? app.lastWorkspaceId : null };
   }
 
+  /** Запоминает последнюю открытую рабочую область. */
   async setLast(id) {
+    this.dir(id);
     await writeJsonAtomic(path.join(this.dataDir, 'app.json'), { lastWorkspaceId: id }, true);
   }
 
@@ -180,20 +213,40 @@ export class Store {
     return this.enqueue(id, async () => {
       const dir = this.dir(id);
       this.cache.delete(id);
+      this.stateRevisions.delete(id);
       await fsp.rm(dir, { recursive: true, force: true });
     });
   }
 
   async open(id) {
     const ws = await this.load(id);
+    // Запись последней области ставится в очередь сразу: порядок записей следует порядку открытий.
+    const remembered = this.setLast(id);
+    remembered.catch(() => {});
     const state = await readJson(path.join(this.dir(id), 'state.json'), {});
-    await this.setLast(id);
+    await remembered;
     return { workspace: ws, state };
   }
 
+  /**
+   * Сохраняет состояние просмотра. state.rev — отметка времени клиента:
+   * более старое состояние, пришедшее позже, не заменяет более новое.
+   */
   async saveState(id, state) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      throw new StoreError(400, 'bad_state', 'Состояние просмотра задано неверно.');
+    }
     await this.load(id);
-    await writeJsonAtomic(path.join(this.dir(id), 'state.json'), state, true);
+    return this.enqueue(`${id}:state`, async () => {
+      const file = path.join(this.dir(id), 'state.json');
+      let known = this.stateRevisions.get(id);
+      if (known === undefined) known = Number((await readJson(file, {})).rev) || 0;
+      const rev = Number(state.rev) || 0;
+      if (rev < known) return { saved: false, rev: known };
+      await writeJsonAtomic(file, state, true);
+      this.stateRevisions.set(id, rev);
+      return { saved: true, rev };
+    });
   }
 
   /** Применяет одну операцию и сохраняет рабочую область. */

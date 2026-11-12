@@ -1,0 +1,24 @@
+{
+  "history": {
+    "entries": [
+      [],
+      [
+        "t3"
+      ],
+      [
+        "t3",
+        "t5"
+      ]
+    ],
+    "index": 2
+  },
+  "view": {
+    "mode": "selection",
+    "sort": "title"
+  },
+  "settings": {
+    "remindOnContentChange": false,
+    "showOwnCounts": true,
+    "showTimings": false
+  }
+}

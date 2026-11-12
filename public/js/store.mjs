@@ -6,8 +6,13 @@ import {
   createHistory, currentNode, historyVisit, historyStep, historyCanStep, historyDropTag, restoreHistory,
 } from '/shared/model.mjs';
 import { applyPatch } from '/shared/ops.mjs';
+import {
+  cleanDisplay, cleanNumber, DEFAULT_DISPLAY, DEFAULT_LIMIT, DEFAULT_PAGE_SIZE, LIMIT_RANGE, PAGE_SIZE_RANGE,
+} from '/shared/display.mjs';
 
-const DEFAULT_SETTINGS = { remindOnContentChange: true, showOwnCounts: true, showTimings: false };
+const DEFAULT_SETTINGS = {
+  remindOnContentChange: true, showOwnCounts: true, showTimings: false, limit: DEFAULT_LIMIT, pageSize: DEFAULT_PAGE_SIZE,
+};
 
 export const state = {
   phase: 'loading', // loading | welcome | ready | failed
@@ -16,8 +21,11 @@ export const state = {
   ws: null,
   index: null,
   history: createHistory(),
-  view: { mode: 'own', sort: 'time' },
+  view: { mode: 'own', sort: 'time', display: DEFAULT_DISPLAY },
   settings: { ...DEFAULT_SETTINGS },
+  page: 0, // номер страницы постраничного просмотра
+  edge: null, // запрошенные крайние позиции: 'first' | 'last'
+  saveFailed: false, // состояние просмотра не удалось сохранить
   screen: 'browse', // browse | markup
   drafts: {}, // несохранённые наборы тегов в режиме разметки: { itemId: [названия] }
   dialogs: [],
@@ -113,8 +121,13 @@ export async function openWorkspace(id) {
   state.view = {
     mode: saved.view?.mode === 'selection' ? 'selection' : 'own',
     sort: saved.view?.sort === 'title' ? 'title' : 'time',
+    display: cleanDisplay(saved.view?.display),
   };
   state.settings = { ...DEFAULT_SETTINGS, ...(saved.settings ?? {}) };
+  state.settings.limit = cleanNumber(state.settings.limit, LIMIT_RANGE, DEFAULT_LIMIT);
+  state.settings.pageSize = cleanNumber(state.settings.pageSize, PAGE_SIZE_RANGE, DEFAULT_PAGE_SIZE);
+  state.page = 0;
+  state.edge = null;
   state.screen = 'browse';
   state.drafts = {};
   state.dialogs = [];
@@ -160,12 +173,61 @@ export async function deleteWorkspace(id) {
 
 // ---------- Сохранение состояния просмотра ----------
 
-let saving = Promise.resolve();
+// Одновременно выполняется один запрос; если состояние изменилось, пока он шёл,
+// следом отправляется только последнее. Отметка rev растёт с каждым изменением:
+// сервер не заменит более новое состояние более старым.
+let lastRev = 0;
+let queued = null;
+let inFlight = false;
+let retryTimer = null;
+let retryDelay = 1000;
+
 function persist() {
-  const id = state.ws.id;
-  const snapshot = { history: state.history, view: state.view, settings: state.settings };
-  saving = saving.then(() => api.saveState(id, snapshot)).catch(() => {});
+  lastRev = Math.max(Date.now(), lastRev + 1);
+  queued = { id: state.ws.id, snapshot: { rev: lastRev, history: state.history, view: state.view, settings: state.settings } };
+  pump();
 }
+
+async function pump() {
+  if (inFlight || !queued) return;
+  clearTimeout(retryTimer);
+  const job = queued;
+  queued = null;
+  inFlight = true;
+  let failed = false;
+  try {
+    await api.saveState(job.id, job.snapshot);
+    retryDelay = 1000;
+    if (state.saveFailed) {
+      state.saveFailed = false;
+      emit();
+    }
+  } catch (error) {
+    // Области больше нет — сохранять нечего. Иначе сообщаем и повторяем.
+    if (error.status !== 404) {
+      failed = true;
+      if (!queued) queued = job;
+      if (!state.saveFailed) {
+        state.saveFailed = true;
+        emit();
+      }
+      retryTimer = setTimeout(pump, retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 15000);
+    }
+  }
+  inFlight = false;
+  if (!failed) pump();
+}
+
+/** Повторить сохранение состояния немедленно. */
+export function retrySave() {
+  pump();
+}
+
+// Страницу закрывают, а последнее состояние ещё не отправлено.
+window.addEventListener('pagehide', () => {
+  if (queued) api.saveState(queued.id, queued.snapshot).catch(() => {});
+});
 
 // ---------- Навигация ----------
 
@@ -180,6 +242,7 @@ export function navigate(tagIds) {
   const unique = [...new Set(tagIds)].filter((id) => state.index.tagById.has(id));
   state.history = historyVisit(state.history, unique);
   state.notice = null;
+  resetShown();
   persist();
   emit();
 }
@@ -191,6 +254,7 @@ export const canGoForward = () => historyCanStep(state.history, 1, available);
 export function goBack() {
   state.history = historyStep(state.history, -1, available);
   state.notice = null;
+  resetShown();
   persist();
   emit();
 }
@@ -198,24 +262,59 @@ export function goBack() {
 export function goForward() {
   state.history = historyStep(state.history, 1, available);
   state.notice = null;
+  resetShown();
   persist();
   emit();
 }
 
+/** Страница и запрос крайних позиций относятся к одному показанному множеству. */
+function resetShown() {
+  state.page = 0;
+  state.edge = null;
+}
+
+/** Состав элементов: 'own' — собственные, 'selection' — выборка узла. */
 export function setMode(mode) {
   state.view = { ...state.view, mode };
+  resetShown();
   persist();
   emit();
 }
 
+/** Смена сортировки не показывает скрытые элементы; уже запрошенные крайние пересчитываются. */
 export function setSort(sort) {
   state.view = { ...state.view, sort };
+  state.page = 0;
   persist();
+  emit();
+}
+
+/** Способ показа: 'limit' | 'fit' | 'pages'. */
+export function setDisplay(display) {
+  state.view = { ...state.view, display: cleanDisplay(display) };
+  resetShown();
+  persist();
+  emit();
+}
+
+export function setPage(page) {
+  state.page = Math.max(0, page);
+  emit();
+}
+
+export function setEdge(edge) {
+  state.edge = edge;
   emit();
 }
 
 export function setSetting(name, value) {
-  state.settings = { ...state.settings, [name]: value };
+  let clean = value;
+  if (name === 'limit') clean = cleanNumber(value, LIMIT_RANGE, state.settings.limit);
+  if (name === 'pageSize') {
+    clean = cleanNumber(value, PAGE_SIZE_RANGE, state.settings.pageSize);
+    state.page = 0;
+  }
+  state.settings = { ...state.settings, [name]: clean };
   persist();
   emit();
 }

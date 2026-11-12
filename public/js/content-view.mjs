@@ -19,15 +19,17 @@ function FileRow({ content, url, downloadUrl, note }) {
 
 /**
  * content — содержание элемента. localUrl — адрес ещё не сохранённого файла
- * (предпросмотр в редакторе). compact — уменьшенный показ в списках.
+ * (предпросмотр в редакторе). compact — уменьшенные изображения и видео в списках;
+ * текст не обрезается никогда. eager — загружать изображения сразу: размеры
+ * нужны для проверки вместимости экрана.
  */
-export function ContentView({ content, localUrl, compact }) {
+export function ContentView({ content, localUrl, compact, eager }) {
   const [failed, setFailed] = useState(false);
   if (content.kind === 'empty') {
     return html`<p class="content-empty" data-content="empty">Пустое содержание</p>`;
   }
   if (content.kind === 'text') {
-    return html`<p class=${cx('content-text', compact && 'is-compact')} data-content="text">${content.text}</p>`;
+    return html`<p class="content-text" data-content="text">${content.text}</p>`;
   }
   const kind = mediaKind(content.mime);
   const url = localUrl ?? fileUrl(state.ws.id, content.fileId);
@@ -38,7 +40,7 @@ export function ContentView({ content, localUrl, compact }) {
     return html`<div class="content-media" data-content="image">
       <button type="button" class="image-button" title="Открыть изображение целиком"
         onClick=${() => openDialog({ type: 'image', url, name: content.name })}>
-        <img src=${url} alt=${content.name} loading="lazy" class=${cx('content-image', compact && 'is-compact')} onError=${() => setFailed(true)} />
+        <img src=${url} alt=${content.name} loading=${eager ? 'eager' : 'lazy'} class=${cx('content-image', compact && 'is-compact')} onError=${() => setFailed(true)} />
       </button>
       <${FileRow} content=${content} downloadUrl=${downloadUrl} />
     </div>`;

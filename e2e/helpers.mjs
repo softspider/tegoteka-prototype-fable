@@ -61,8 +61,21 @@ export async function api(base, method, url, body) {
   return data;
 }
 
-export async function createWorkspace(base, preset, name = `Проверка ${preset}`) {
-  return (await api(base, 'POST', '/api/workspaces', { name, preset })).workspace.id;
+/**
+ * Создаёт рабочую область из заготовки. По умолчанию задаёт предел количества,
+ * допускающий показ всех карточек: сценарии первой итерации проверяют состав
+ * выборок по видимым элементам. settings: null оставляет начальные настройки.
+ */
+export async function createWorkspace(base, preset, name = `Проверка ${preset}`, settings = { limit: 200 }) {
+  const id = (await api(base, 'POST', '/api/workspaces', { name, preset })).workspace.id;
+  if (settings) await api(base, 'PUT', `/api/workspaces/${id}/state`, { rev: 1, settings });
+  return id;
+}
+
+/** Действие из меню карточки: 'item-delete' или 'item-move'. scope — страница или карточка. */
+export async function menuAction(page, scope, action) {
+  await scope.locator(t('item-menu')).first().click();
+  await page.click(t(action));
 }
 
 export const op = (base, id, body) => api(base, 'POST', `/api/workspaces/${id}/ops`, body);

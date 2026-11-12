@@ -3,7 +3,7 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   setup, createWorkspace, openWorkspace, addTags, nodeTags, items, labels, setMode, activeValue, count, unmarkedCount,
-  typeMarkupTags, shot, t,
+  typeMarkupTags, menuAction, shot, t,
 } from './helpers.mjs';
 
 let env;
@@ -85,7 +85,7 @@ test('E7 и E8 остаются разными элементами с пуст�
   assert.deepEqual(list.map((item) => item.title).sort(), ['Анна', 'Игорь Артемьев']);
   assert.deepEqual(list.find((item) => item.title === 'Анна'), anna);
 
-  await page.locator('[data-testid=item]', { hasText: 'Игорь Артемьев' }).locator(t('item-delete')).click();
+  await menuAction(page, page.locator('[data-testid=item]', { hasText: 'Игорь Артемьев' }), 'item-delete');
   await page.click(t('confirm-ok'));
   await page.waitForFunction(() => document.querySelectorAll('[data-testid=item]').length === 1);
   assert.deepEqual(await items(page), [anna]);
