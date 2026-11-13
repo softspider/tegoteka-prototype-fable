@@ -182,7 +182,9 @@ export function Switch({ checked, onChange, label, hint, testId }) {
 export function Menu({ label, items, testId }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  useEffect(() => {
+  // Обработчики подключаются в той же синхронной фазе, в которой меню появляется:
+  // открытое меню сразу готово к Escape и к нажатию вне его.
+  useLayoutEffect(() => {
     if (!open) return undefined;
     const onPointerDown = (event) => {
       if (!ref.current?.contains(event.target)) setOpen(false);

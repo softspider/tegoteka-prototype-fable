@@ -278,7 +278,7 @@ function FitArea({ items }) {
   };
 
   useLayoutEffect(measure);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const observer = new ResizeObserver(measure);
     observer.observe(document.body);
     if (probe.current) observer.observe(probe.current);

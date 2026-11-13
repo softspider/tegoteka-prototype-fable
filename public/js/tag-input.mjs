@@ -133,10 +133,13 @@ export function TagInput({ mode, selectedIds, onAdd, onBackspace, placeholder, i
       const floor = foot ? foot.getBoundingClientRect().top : window.innerHeight;
       const below = floor - rect.bottom;
       const upward = (mode === 'markup' && !foot && rect.top > 220) || (below < 220 && rect.top > below);
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - 328));
+      // На узком экране список занимает ширину окна, на широком — не выходит за правый край.
+      const across = window.innerWidth <= 520
+        ? 'left:8px;right:8px;width:auto;min-width:0;max-width:none'
+        : `left:${Math.max(8, Math.min(rect.left, window.innerWidth - 476))}px`;
       setPlace(upward
-        ? `left:${left}px;bottom:${window.innerHeight - rect.top + 6}px;--suggest-room:${Math.max(80, rect.top - 90)}px`
-        : `left:${left}px;top:${rect.bottom + 6}px;--suggest-room:${Math.max(80, below - 90)}px`);
+        ? `${across};bottom:${window.innerHeight - rect.top + 6}px;--suggest-room:${Math.max(80, rect.top - 90)}px`
+        : `${across};top:${rect.bottom + 6}px;--suggest-room:${Math.max(80, below - 90)}px`);
     };
     update();
     window.addEventListener('scroll', update, true);
