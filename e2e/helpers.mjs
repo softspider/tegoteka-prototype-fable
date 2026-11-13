@@ -169,9 +169,13 @@ export async function shot(page, name) {
   await page.screenshot({ path: path.join(ARTIFACTS, `${name}.png`) });
 }
 
-/** Общая обвязка файла сценариев: сервер, браузер, контекст. */
-export async function setup() {
+/**
+ * Общая обвязка файла сценариев: сервер, браузер, контекст.
+ * seed — каталог с готовыми данными; во временный каталог попадает его копия.
+ */
+export async function setup({ seed } = {}) {
   const dataDir = await newDataDir();
+  if (seed) await fs.cp(seed, dataDir, { recursive: true });
   let server = await startServer(dataDir);
   const browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1360, height: 900 }, locale: 'ru-RU' });

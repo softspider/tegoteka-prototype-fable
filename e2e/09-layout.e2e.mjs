@@ -237,6 +237,13 @@ for (const [format, viewport] of [['смартфон 390×844', PHONE], ['дес
     assert.ok(bar.height <= viewport.height * 0.45, `панель узла занимает ${bar.height} из ${viewport.height}`);
     for (const id of ['nav-back', 'nav-root', 'add-item']) assert.equal((await box(page, t(id))).inViewport, true, `${id} доступен`);
     assert.equal(await noSidewaysScroll(page), true);
+    // Поле ввода тега видно и до нажатия на него, хотя набор тегов прокручивается внутри панели.
+    const inputInsideBar = await page.evaluate(() => {
+      const input = document.getElementById('nav-tag-input').getBoundingClientRect();
+      const tags = document.querySelector('[data-testid=node-tags]').getBoundingClientRect();
+      return input.top >= tags.top && input.bottom <= tags.bottom + 1;
+    });
+    assert.equal(inputInsideBar, true, 'поле ввода не скрыто за длинным набором тегов');
     // Ввод тега при длинном наборе: поле прокручивается в видимую часть панели, подсказки видны.
     await page.click('#nav-tag-input');
     assert.equal((await box(page, '#nav-tag-input')).inViewport, true);
@@ -246,6 +253,8 @@ for (const [format, viewport] of [['смартфон 390×844', PHONE], ['дес
     await page.keyboard.press('Enter');
     assert.equal((await nodeTags(page)).length, 9);
     assert.equal(await count(page, t('empty-selection')), 1);
+    assert.equal((await box(page, '#nav-tag-input')).inViewport, true, 'поле ввода остаётся видимым после добавления тега');
+    await page.evaluate(() => window.scrollTo(0, 0));
     await shot(page, `09-long-tags-${tag}`);
     // Удаление тега из длинного набора и выход в корень — по одному нажатию.
     await page.click(`[data-testid=node-tags] [data-tag="${long(9)}"] .tag-remove`);

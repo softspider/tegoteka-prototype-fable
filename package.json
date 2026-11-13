@@ -10,8 +10,8 @@
   },
   "scripts": {
     "start": "node server/server.mjs",
-    "test": "node --test tests/model.test.mjs tests/ops.test.mjs tests/history.test.mjs tests/storage.test.mjs",
-    "test:browser": "node --test --test-concurrency=1 e2e/01-selections.e2e.mjs e2e/02-navigation.e2e.mjs e2e/03-editing.e2e.mjs e2e/04-media-persistence.e2e.mjs e2e/05-volume.e2e.mjs",
+    "test": "node --test tests/model.test.mjs tests/ops.test.mjs tests/history.test.mjs tests/storage.test.mjs tests/display.test.mjs tests/state-saving.test.mjs tests/migration.test.mjs",
+    "test:browser": "node --test --test-concurrency=1 e2e/01-selections.e2e.mjs e2e/02-navigation.e2e.mjs e2e/03-editing.e2e.mjs e2e/04-media-persistence.e2e.mjs e2e/05-volume.e2e.mjs e2e/06-display.e2e.mjs e2e/07-fit.e2e.mjs e2e/08-fixes.e2e.mjs e2e/09-layout.e2e.mjs e2e/10-iteration-1-data.e2e.mjs",
     "measure": "node scripts/measure.mjs",
     "demo-media": "node scripts/make-demo-media.mjs"
   },
