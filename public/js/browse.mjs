@@ -294,6 +294,7 @@ function FitArea({ items }) {
   }, [possible]);
 
   const shown = possible && fits === true;
+  useClearEdge(shown);
   return html`<div class="fit-anchor" ref=${anchor} data-testid="fit-area" data-fits=${String(possible ? fits : false)} data-room=${room}>
       ${possible ? html`<div class=${cx('fit-list', !shown && 'is-probe')} ref=${probe} inert=${!shown} aria-hidden=${!shown}>
         <${ItemList} items=${items} probe=${!shown} eager />
@@ -336,12 +337,20 @@ function EmptyState({ view }) {
   </div>`;
 }
 
+/** Запрос крайних позиций теряет смысл, как только множество показано целиком. */
+function useClearEdge(shownInFull) {
+  useEffect(() => {
+    if (shownInFull && state.edge) setEdge(null);
+  });
+}
+
 function ItemsArea({ view }) {
   const items = state.view.mode === 'own' ? view.own : view.selection;
   const display = state.view.display;
+  const decision = display === 'fit' ? 'fit' : decideDisplay({ display, count: items.length, limit: state.settings.limit });
+  useClearEdge(decision === 'all' || decision === 'empty');
   if (items.length === 0) return html`<${EmptyState} view=${view} />`;
   if (display === 'fit') return html`<${FitArea} key=${`${nodeKey(view.tagIds)}|${state.view.mode}`} items=${items} />`;
-  const decision = decideDisplay({ display, count: items.length, limit: state.settings.limit });
   if (decision === 'pages') return html`<${PagedList} items=${items} />`;
   if (decision === 'all') return html`<${ItemList} items=${items} />`;
   return state.edge ? html`<${EdgeList} items=${items} />` : html`<${HiddenPanel} count=${items.length} reason="limit" />`;

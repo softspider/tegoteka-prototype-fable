@@ -81,12 +81,16 @@ export function GlossaryDialog() {
 
   const add = async (event) => {
     event.preventDefault();
+    // Поля очищаются сразу: следующий тег можно вводить, не дожидаясь ответа сервера.
+    const sent = { name, description };
+    setName('');
+    setDescription('');
+    setError(null);
     try {
-      await runOp({ type: 'addTag', name, description });
-      setName('');
-      setDescription('');
-      setError(null);
+      await runOp({ type: 'addTag', ...sent });
     } catch (failure) {
+      setName((current) => current || sent.name);
+      setDescription((current) => current || sent.description);
       setError(failure.message);
     }
   };

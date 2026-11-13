@@ -194,3 +194,54 @@ export async function setup() {
     },
   };
 }
+
+// ---------- Вторая итерация ----------
+
+export const PHONE = { width: 390, height: 844 };
+export const DESKTOP = { width: 1440, height: 1000 };
+
+const LONG_TEXT = Array.from({ length: 3 }, (_, i) =>
+  `Абзац ${i + 1}. Груша требует солнечного места и регулярного полива в первый год после посадки; обрезку проводят ранней весной до начала сокодвижения, удаляя слабые и растущие внутрь кроны побеги.`).join('\n\n');
+
+/**
+ * Данные проверок второй итерации: набор E0–E9 с медиа и пять элементов с
+ * одинаковой разметкой {сад} — короткие и длинный тексты, одинаковые и
+ * отсутствующие названия. Узел {сад}: 6 собственных элементов, 7 в выборке.
+ */
+export async function extendedWorkspace(base, settings = { limit: 200 }) {
+  const id = await createWorkspace(base, 'demo-media', 'Проверка обозримости', settings);
+  const text = (value) => ({ kind: 'text', text: value });
+  const garden = [
+    { title: 'Яблоня', content: text('Побелить ствол') },
+    { title: 'Яблоня', content: text('Купить саженец') },
+    { title: null, content: text('Проверить шланг') },
+    { title: 'Груша', content: text(LONG_TEXT) },
+    { title: 'Айва', content: text('Собрать урожай') },
+  ];
+  for (const item of garden) await op(base, id, { type: 'createItem', ...item, tags: ['сад'] });
+  return id;
+}
+
+export async function setDisplay(page, display) {
+  await page.click(`[data-testid=display-switch] [data-value=${display}]`);
+}
+
+/** Меняет числовую настройку через диалог настроек. */
+export async function setNumberSetting(page, testId, value) {
+  await page.click(t('open-settings'));
+  await page.fill(t(testId), String(value));
+  await page.keyboard.press('Escape');
+  await page.waitForSelector(t('settings-dialog'), { state: 'detached' });
+}
+
+export async function segmentCount(page, switchId, value) {
+  return Number((await page.textContent(`[data-testid=${switchId}] [data-value=${value}] .segment-count`)).replace(/\s/g, ''));
+}
+
+/** Число скрытых элементов или null, если состояния «скрыто» нет. */
+export async function hiddenCount(page) {
+  const panel = page.locator(t('hidden-state'));
+  return (await panel.count()) ? Number(await panel.getAttribute('data-count')) : null;
+}
+
+export const itemIds = async (page) => (await items(page)).map((item) => item.id);

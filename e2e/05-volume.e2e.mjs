@@ -70,14 +70,28 @@ test('диагностический набор: отбор, переходы, �
   await page.check(t('setting-timings'));
   await page.keyboard.press('Escape');
 
-  // Корень: выборка из 10 000 элементов показывается порциями.
+  // Корень: выборка из 10 000 элементов скрыта пределом; состав и счётчики не меняются.
   assert.equal(await count(page, t('empty-own')), 1);
-  results['Корень: показать выборку (10 000 элементов)'] = await click(page, '[data-testid=mode-switch] [data-value=selection]');
-  assert.equal(await count(page, t('item')), 40);
+  results['Корень: выбрать выборку (10 000 элементов, скрыты пределом)'] = await click(page, '[data-testid=mode-switch] [data-value=selection]');
+  assert.equal(await page.getAttribute(t('hidden-state'), 'data-count'), '10000');
+  assert.equal(await count(page, t('item')), 0);
+  assert.equal((await page.textContent('[data-testid=mode-switch] [data-value=selection] .segment-count')).replace(/\s/g, ''), '10000');
+  results['Корень: первые 5 элементов по запросу'] = await click(page, '[data-testid=show-first]');
+  assert.equal(await count(page, t('item')), 5);
+  results['Корень: последние 5 элементов по запросу'] = await click(page, '[data-testid=show-last]');
+  assert.equal(await count(page, t('item')), 5);
+  results['Корень: постраничный просмотр'] = await click(page, '[data-testid=display-switch] [data-value=pages]');
+  assert.equal(await count(page, t('item')), 10);
+  assert.equal((await page.textContent(t('pager-label'))).replace(/\s/g, ''), '1–10из10000');
+  results['Корень: следующая страница'] = await click(page, '[data-testid=pager] [data-testid=page-next]');
+  results['Корень: последняя страница'] = await click(page, '[data-testid=pager] [data-testid=page-last]');
+  assert.equal(await page.getAttribute(t('pager'), 'data-page'), '1000');
   results['Корень: сортировка по названию'] = await click(page, '[data-testid=sort-switch] [data-value=title]');
   results['Корень: сортировка по времени'] = await click(page, '[data-testid=sort-switch] [data-value=time]');
-  results['Корень: показать ещё 40 элементов'] = await click(page, '[data-testid=show-more]');
-  assert.equal(await count(page, t('item')), 80);
+  results['Корень: показ по вместимости экрана'] = await click(page, '[data-testid=display-switch] [data-value=fit]');
+  assert.equal(await page.getAttribute(t('hidden-state'), 'data-reason'), 'fit');
+  assert.equal(await count(page, t('probe-item')), 0, 'заведомо не помещающееся множество не строится');
+  await click(page, '[data-testid=display-switch] [data-value=pages]');
   assert.equal((await transitions(page, 'descendants')).length, 6);
   results['Корень: раскрыть все переходы (100)'] = await click(page, '[data-testid=descendants] [data-testid=transition-toggle]');
   assert.match(await page.textContent(t('transition-pager')), /1–12 из 100/);

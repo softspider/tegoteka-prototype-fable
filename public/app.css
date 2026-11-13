@@ -315,7 +315,7 @@ button.tag-main:hover { background: var(--accent-soft); color: var(--accent-stro
 .item-time { margin-left: auto; font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
 .item-content { margin-bottom: 8px; }
 .item-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
-.item-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; flex: 1 1 200px; min-width: 0; }
+.item-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; flex: 1 1 110px; min-width: 0; }
 .item-actions { display: flex; align-items: center; gap: 0; margin-left: auto; }
 .item-actions .button { color: var(--ink-2); }
 
