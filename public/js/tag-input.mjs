@@ -127,12 +127,16 @@ export function TagInput({ mode, selectedIds, onAdd, onBackspace, placeholder, i
     if (!showPanel) return undefined;
     const update = () => {
       const rect = inputRef.current.getBoundingClientRect();
-      const below = window.innerHeight - rect.bottom;
-      const upward = below < 240 && rect.top > below;
+      // Список не должен заслонять действия формы: в диалоге он заканчивается над
+      // нижней строкой кнопок, в режиме разметки открывается вверх от поля.
+      const foot = inputRef.current.closest('.modal')?.querySelector('.modal-foot');
+      const floor = foot ? foot.getBoundingClientRect().top : window.innerHeight;
+      const below = floor - rect.bottom;
+      const upward = (mode === 'markup' && !foot && rect.top > 220) || (below < 220 && rect.top > below);
       const left = Math.max(8, Math.min(rect.left, window.innerWidth - 328));
       setPlace(upward
-        ? `left:${left}px;bottom:${window.innerHeight - rect.top + 6}px;--suggest-room:${Math.max(120, rect.top - 90)}px`
-        : `left:${left}px;top:${rect.bottom + 6}px;--suggest-room:${Math.max(120, below - 90)}px`);
+        ? `left:${left}px;bottom:${window.innerHeight - rect.top + 6}px;--suggest-room:${Math.max(80, rect.top - 90)}px`
+        : `left:${left}px;top:${rect.bottom + 6}px;--suggest-room:${Math.max(80, below - 90)}px`);
     };
     update();
     window.addEventListener('scroll', update, true);
